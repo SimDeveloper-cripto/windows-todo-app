@@ -14,6 +14,7 @@ RUN git clone https://github.com/raysan5/raylib.git /raylib \
     && make install
 
 WORKDIR /app
+COPY . /app
 
-# RUN g++ main.cpp -o todo_app -lraylib -lsqlite3 -std=c++17
+RUN chmod +x /app/compile.sh
 CMD ["bash"]

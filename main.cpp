@@ -16,12 +16,13 @@ struct Task {
 // TODO: Handle selection of the entire input box (delete word or phrase)
 // TODO: Handle backspace press for a long period of time
 
-#define COLOR_BG      CLITERAL(Color){ 30, 37, 45, 255 }    // Blu notte
-#define COLOR_ACCENT  CLITERAL(Color){ 100, 149, 237, 255 } // Blu fiordaliso
+#define COLOR_BG      CLITERAL(Color){ 30, 37, 45, 255 }
+// #define COLOR_BG      CLITERAL(Color){ 220, 230, 235, 255 }
+#define COLOR_ACCENT  CLITERAL(Color){ 100, 149, 237, 255 }
 #define COLOR_TEXT    CLITERAL(Color){ 50, 50, 70, 255 }
 #define COLOR_TASK_BG CLITERAL(Color){ 255, 255, 255, 255 }
-#define COLOR_DONE    CLITERAL(Color){ 152, 251, 152, 255 } // Verde chiaro pastello
-#define COLOR_DELETE  CLITERAL(Color){ 255, 99, 71, 255 }   // Rosso pomodoro
+#define COLOR_DONE    CLITERAL(Color){ 152, 251, 152, 255 }
+#define COLOR_DELETE  CLITERAL(Color){ 255, 99, 71, 255 }
 
 sqlite3 *db         = nullptr;
 const char* DB_FILE = "todo_list.db";
@@ -29,11 +30,17 @@ const char* DB_FILE = "todo_list.db";
 const int screenWidth     = 800;
 const int screenHeight    = 600;
 const int MAX_INPUT_CHARS = 64;
+
 char inputTaskText[MAX_INPUT_CHARS + 1] = "\0";
 int letterCount        = 0;
 bool isInputBoxActive  = false;
 Rectangle inputTaskBox = { 50, 120, 550, 40 };
 Rectangle addButton    = { 610, 120, 140, 40 };
+
+double lastBackspaceTime  = 0.0;
+const double initialDelay = 0.5;
+const double repeatRate   = 0.05;
+bool firstBackspace       = true;
 
 std::vector<Task> tasks;
 
@@ -131,12 +138,13 @@ void HandleInput() {
     // Mouse Click
     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         Vector2 mousePoint = GetMousePosition();
-        
+
         // Attiva/Disattiva l'input box
         if (CheckCollisionPointRec(mousePoint, inputTaskBox)) {
             isInputBoxActive = true;
         } else {
             isInputBoxActive = false;
+            // TODO: ADD more logic
         }
 
         // Gestione click sul bottone AGGIUNGI
@@ -149,7 +157,6 @@ void HandleInput() {
             }
         }
 
-        // Gestione click sulle tasks (Checkbox & Delete)
         int taskY      = 200;
         int taskHeight = 50;
         int spacing    = 10;
@@ -161,12 +168,12 @@ void HandleInput() {
 
             if (CheckCollisionPointRec(mousePoint, checkBoxRec)) {
                 UpdateTaskDone(task.id, !task.done);
-                break;
+                return;
             }
 
             if (CheckCollisionPointRec(mousePoint, deleteButtonRec)) {
                 DeleteTask(task.id);
-                break;
+                return;
             }
 
             taskY += taskHeight + spacing;
@@ -187,13 +194,31 @@ void HandleInput() {
         }
 
         // Backspace handling
-        if (IsKeyPressed(KEY_BACKSPACE)) {
-            if (letterCount > 0) {
+        if (IsKeyDown(KEY_BACKSPACE)) {
+            double currentTime = GetTime();
+            bool shouldDelete  = false;
+            
+            if (firstBackspace) {
+                shouldDelete = IsKeyPressed(KEY_BACKSPACE);
+                if (shouldDelete) {
+                    firstBackspace    = false;
+                    lastBackspaceTime = currentTime;
+                }
+            } else {
+                if (currentTime - lastBackspaceTime >= repeatRate) {
+                    shouldDelete = true;
+                    lastBackspaceTime = currentTime;
+                }
+            }
+
+            if (shouldDelete && letterCount > 0) {
                 letterCount--;
                 inputTaskText[letterCount] = '\0';
             }
+        } else if (IsKeyReleased(KEY_BACKSPACE)) {
+            firstBackspace = true;
         }
-        
+
         // ENTER handling
         if (IsKeyPressed(KEY_ENTER)) {
              if (letterCount > 0) {
@@ -250,7 +275,7 @@ void DrawUI() {
         Rectangle taskRec         = { 50, (float)taskY, (float)screenWidth - 100, (float)taskHeight };
         Rectangle checkBoxRec     = { taskRec.x + 10, taskRec.y + 15, 20, 20 };
         Rectangle deleteButtonRec = { taskRec.x + taskRec.width - 100, taskRec.y + 10, 90, 30 };
-        
+
         DrawRectangleRounded(taskRec, 0.2f, 8, COLOR_TASK_BG);
         DrawRectangleRoundedLines(taskRec, 0.2f, 8, LIGHTGRAY);
 
